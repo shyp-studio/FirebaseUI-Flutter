@@ -4,10 +4,10 @@
 
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_ui_shared/firebase_ui_shared.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// A function that builds a widget from a [FirestoreQueryBuilderSnapshot]
 ///
@@ -72,6 +72,7 @@ class FirestoreQueryBuilder<Document> extends StatefulWidget {
     required this.query,
     required this.builder,
     this.pageSize = 10,
+    this.includeMetadataChanges = false,
     this.child,
   }) : assert(pageSize > 1, 'Cannot have a pageSize lower than 1');
 
@@ -85,6 +86,10 @@ class FirestoreQueryBuilder<Document> extends StatefulWidget {
   /// When it changes, the current progress will be preserved.
   final int pageSize;
 
+  /// Whether to include metadata changes in the query.
+  /// Defaults to false.
+  final bool includeMetadataChanges;
+
   final FirestoreQueryBuilderSnapshotBuilder<Document> builder;
 
   /// A widget that will be passed to [builder] for optimizations purpose.
@@ -95,12 +100,10 @@ class FirestoreQueryBuilder<Document> extends StatefulWidget {
 
   @override
   // ignore: library_private_types_in_public_api
-  _FirestoreQueryBuilderState<Document> createState() =>
-      _FirestoreQueryBuilderState<Document>();
+  _FirestoreQueryBuilderState<Document> createState() => _FirestoreQueryBuilderState<Document>();
 }
 
-class _FirestoreQueryBuilderState<Document>
-    extends State<FirestoreQueryBuilder<Document>> {
+class _FirestoreQueryBuilderState<Document> extends State<FirestoreQueryBuilder<Document>> {
   StreamSubscription? _querySubscription;
 
   var _pageCount = 0;
@@ -118,9 +121,7 @@ class _FirestoreQueryBuilderState<Document>
   );
 
   void _fetchNextPage() {
-    if (_snapshot.isFetching ||
-        !_snapshot.hasMore ||
-        _snapshot.isFetchingMore) {
+    if (_snapshot.isFetching || !_snapshot.hasMore || _snapshot.isFetchingMore) {
       return;
     }
 
@@ -172,7 +173,7 @@ class _FirestoreQueryBuilderState<Document>
 
     final query = widget.query.limit(expectedDocsCount);
 
-    _querySubscription = query.snapshots().listen(
+    _querySubscription = query.snapshots(includeMetadataChanges: widget.includeMetadataChanges).listen(
       (event) {
         setState(() {
           if (nextPage) {
@@ -183,9 +184,7 @@ class _FirestoreQueryBuilderState<Document>
 
           _snapshot = _snapshot.copyWith(
             hasData: true,
-            docs: event.size < expectedDocsCount
-                ? event.docs
-                : event.docs.take(expectedDocsCount - 1).toList(),
+            docs: event.size < expectedDocsCount ? event.docs : event.docs.take(expectedDocsCount - 1).toList(),
             error: null,
             hasMore: event.size == expectedDocsCount,
             stackTrace: null,
@@ -272,8 +271,7 @@ abstract class FirestoreQueryBuilderSnapshot<Document> {
   void fetchMore();
 }
 
-class _QueryBuilderSnapshot<Document>
-    implements FirestoreQueryBuilderSnapshot<Document> {
+class _QueryBuilderSnapshot<Document> implements FirestoreQueryBuilderSnapshot<Document> {
   _QueryBuilderSnapshot._({
     required this.docs,
     required this.error,
@@ -354,6 +352,8 @@ class _Sentinel {
 typedef FirestoreItemBuilder<Document> = Widget Function(
   BuildContext context,
   QueryDocumentSnapshot<Document> doc,
+  List<QueryDocumentSnapshot<Document>> docs,
+  int index,
 );
 
 /// A type representing the function passed to [FirestoreListView] for its `loadingBuilder`.
@@ -432,6 +432,7 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
     required super.query,
     required FirestoreItemBuilder<Document> itemBuilder,
     super.pageSize,
+    super.includeMetadataChanges,
     FirestoreLoadingBuilder? loadingBuilder,
     FirestoreFetchingIndicatorBuilder? fetchingIndicatorBuilder,
     FirestoreErrorBuilder? errorBuilder,
@@ -452,15 +453,13 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
     double? cacheExtent,
     int? semanticChildCount,
     DragStartBehavior dragStartBehavior = DragStartBehavior.start,
-    ScrollViewKeyboardDismissBehavior keyboardDismissBehavior =
-        ScrollViewKeyboardDismissBehavior.manual,
+    ScrollViewKeyboardDismissBehavior keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
     String? restorationId,
     Clip clipBehavior = Clip.hardEdge,
   }) : super(
           builder: (context, snapshot, _) {
             if (snapshot.isFetching) {
-              return loadingBuilder?.call(context) ??
-                  const Center(child: CircularProgressIndicator());
+              return loadingBuilder?.call(context) ?? const Center(child: CircularProgressIndicator());
             }
 
             if (snapshot.hasError && errorBuilder != null) {
@@ -496,7 +495,7 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            itemBuilder(context, doc),
+                            itemBuilder(context, doc, snapshot.docs, index),
                             if (isLastItem && snapshot.hasMore)
                               fetchingIndicatorBuilder?.call(context) ??
                                   const Padding(
@@ -513,7 +512,7 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
                           ],
                         ),
                       )
-                    : itemBuilder(context, doc);
+                    : itemBuilder(context, doc, snapshot.docs, index);
               },
               scrollDirection: scrollDirection,
               reverse: reverse,
@@ -543,6 +542,7 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
     required super.query,
     required FirestoreItemBuilder<Document> itemBuilder,
     super.pageSize,
+    super.includeMetadataChanges,
     FirestoreLoadingBuilder? loadingBuilder,
     FirestoreFetchingIndicatorBuilder? fetchingIndicatorBuilder,
     FirestoreErrorBuilder? errorBuilder,
@@ -562,15 +562,13 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
     bool addSemanticIndexes = true,
     double? cacheExtent,
     DragStartBehavior dragStartBehavior = DragStartBehavior.start,
-    ScrollViewKeyboardDismissBehavior keyboardDismissBehavior =
-        ScrollViewKeyboardDismissBehavior.manual,
+    ScrollViewKeyboardDismissBehavior keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
     String? restorationId,
     Clip clipBehavior = Clip.hardEdge,
   }) : super(
           builder: (context, snapshot, _) {
             if (snapshot.isFetching) {
-              return loadingBuilder?.call(context) ??
-                  const Center(child: CircularProgressIndicator());
+              return loadingBuilder?.call(context) ?? const Center(child: CircularProgressIndicator());
             }
 
             if (snapshot.hasError && errorBuilder != null) {
@@ -606,7 +604,7 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            itemBuilder(context, doc),
+                            itemBuilder(context, doc, snapshot.docs, index),
                             if (isLastItem && snapshot.hasMore)
                               fetchingIndicatorBuilder?.call(context) ??
                                   const Padding(
@@ -623,7 +621,7 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
                           ],
                         ),
                       )
-                    : itemBuilder(context, doc);
+                    : itemBuilder(context, doc, snapshot.docs, index);
               },
               separatorBuilder: separatorBuilder,
               scrollDirection: scrollDirection,
