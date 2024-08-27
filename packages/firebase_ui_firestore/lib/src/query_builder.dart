@@ -356,6 +356,14 @@ typedef FirestoreItemBuilder<Document> = Widget Function(
   int index,
 );
 
+/// A type representing the function passed to [FirestoreListView] for its `separatorBuilder`.
+typedef FirestoreSeparatorBuilder<Document> = Widget Function(
+  BuildContext context,
+  QueryDocumentSnapshot<Document> doc,
+  List<QueryDocumentSnapshot<Document>> docs,
+  int index,
+);
+
 /// A type representing the function passed to [FirestoreListView] for its `loadingBuilder`.
 typedef FirestoreLoadingBuilder = Widget Function(BuildContext context);
 
@@ -495,20 +503,35 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            itemBuilder(context, doc, snapshot.docs, index),
-                            if (isLastItem && snapshot.hasMore)
-                              fetchingIndicatorBuilder?.call(context) ??
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      vertical: 16.0,
-                                    ),
-                                    child: Center(
-                                      child: LoadingIndicator(
-                                        size: 30.0,
-                                        borderWidth: 2.0,
+                            if (reverse)
+                              if (isLastItem && snapshot.hasMore)
+                                fetchingIndicatorBuilder?.call(context) ??
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 16.0,
+                                      ),
+                                      child: Center(
+                                        child: LoadingIndicator(
+                                          size: 30.0,
+                                          borderWidth: 2.0,
+                                        ),
                                       ),
                                     ),
-                                  ),
+                            itemBuilder(context, doc, snapshot.docs, index),
+                            if (!reverse)
+                              if (isLastItem && snapshot.hasMore)
+                                fetchingIndicatorBuilder?.call(context) ??
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 16.0,
+                                      ),
+                                      child: Center(
+                                        child: LoadingIndicator(
+                                          size: 30.0,
+                                          borderWidth: 2.0,
+                                        ),
+                                      ),
+                                    ),
                           ],
                         ),
                       )
@@ -547,7 +570,8 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
     FirestoreFetchingIndicatorBuilder? fetchingIndicatorBuilder,
     FirestoreErrorBuilder? errorBuilder,
     FirestoreEmptyBuilder? emptyBuilder,
-    required IndexedWidgetBuilder separatorBuilder,
+    required FirestoreSeparatorBuilder<Document> separatorBuilder,
+    FirestoreSeparatorBuilder<Document>? separatorBeginningBuilder,
     Axis scrollDirection = Axis.vertical,
     bool showFetchingIndicator = false,
     bool reverse = false,
@@ -604,26 +628,50 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            itemBuilder(context, doc, snapshot.docs, index),
-                            if (isLastItem && snapshot.hasMore)
-                              fetchingIndicatorBuilder?.call(context) ??
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      vertical: 16.0,
-                                    ),
-                                    child: Center(
-                                      child: LoadingIndicator(
-                                        size: 30.0,
-                                        borderWidth: 2.0,
+                            if (reverse)
+                              if (isLastItem && !snapshot.hasMore && separatorBeginningBuilder != null)
+                                separatorBeginningBuilder(context, doc, snapshot.docs, index),
+                            if (reverse)
+                              if (isLastItem && snapshot.hasMore)
+                                fetchingIndicatorBuilder?.call(context) ??
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 16.0,
+                                      ),
+                                      child: Center(
+                                        child: LoadingIndicator(
+                                          size: 30.0,
+                                          borderWidth: 2.0,
+                                        ),
                                       ),
                                     ),
-                                  ),
+                            itemBuilder(context, doc, snapshot.docs, index),
+                            if (!reverse)
+                              if (isLastItem && snapshot.hasMore)
+                                fetchingIndicatorBuilder?.call(context) ??
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 16.0,
+                                      ),
+                                      child: Center(
+                                        child: LoadingIndicator(
+                                          size: 30.0,
+                                          borderWidth: 2.0,
+                                        ),
+                                      ),
+                                    ),
+                            if (!reverse)
+                              if (isLastItem && !snapshot.hasMore && separatorBeginningBuilder != null)
+                                separatorBeginningBuilder(context, doc, snapshot.docs, index),
                           ],
                         ),
                       )
                     : itemBuilder(context, doc, snapshot.docs, index);
               },
-              separatorBuilder: separatorBuilder,
+              separatorBuilder: (context, index) {
+                final doc = snapshot.docs[index];
+                return separatorBuilder(context, doc, snapshot.docs, index);
+              },
               scrollDirection: scrollDirection,
               reverse: reverse,
               controller: controller,
