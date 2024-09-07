@@ -364,6 +364,13 @@ typedef FirestoreSeparatorBuilder<Document> = Widget Function(
   int index,
 );
 
+typedef FirestoreAdditionalItemsBuilder<Document> = Widget Function(
+  BuildContext context,
+  QueryDocumentSnapshot<Document> doc,
+  List<QueryDocumentSnapshot<Document>> docs,
+  int index,
+);
+
 /// A type representing the function passed to [FirestoreListView] for its `loadingBuilder`.
 typedef FirestoreLoadingBuilder = Widget Function(BuildContext context);
 
@@ -571,7 +578,9 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
     FirestoreErrorBuilder? errorBuilder,
     FirestoreEmptyBuilder? emptyBuilder,
     required FirestoreSeparatorBuilder<Document> separatorBuilder,
-    FirestoreSeparatorBuilder<Document>? separatorBeginningBuilder,
+    FirestoreSeparatorBuilder<Document>? separatorBeginningBuilder, // todo not Beginning is end
+    FirestoreAdditionalItemsBuilder<Document>? additionalItemsBuilder,
+    FirestoreAdditionalItemsBuilder<Document>? additionalItemsBeginningBuilder,
     Axis scrollDirection = Axis.vertical,
     bool showFetchingIndicator = false,
     bool reverse = false,
@@ -618,7 +627,7 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
                 }
 
                 final doc = snapshot.docs[index];
-                return showFetchingIndicator
+                return showFetchingIndicator // todo make separatorBeginningBuilder no need showFetchingIndicator
                     ? OnMountListener(
                         onMount: () {
                           if (isLastItem && snapshot.hasMore) {
@@ -628,6 +637,9 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            if (!reverse)
+                              if (index == 0 && additionalItemsBeginningBuilder != null)
+                                additionalItemsBeginningBuilder.call(context, doc, snapshot.docs, index),
                             if (reverse)
                               if (isLastItem && !snapshot.hasMore && separatorBeginningBuilder != null)
                                 separatorBeginningBuilder(context, doc, snapshot.docs, index),
@@ -663,6 +675,9 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
                             if (!reverse)
                               if (isLastItem && !snapshot.hasMore && separatorBeginningBuilder != null)
                                 separatorBeginningBuilder(context, doc, snapshot.docs, index),
+                            if (reverse)
+                              if (index == 0 && additionalItemsBeginningBuilder != null)
+                                additionalItemsBeginningBuilder.call(context, doc, snapshot.docs, index)
                           ],
                         ),
                       )
@@ -670,7 +685,17 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
               },
               separatorBuilder: (context, index) {
                 final doc = snapshot.docs[index];
-                return separatorBuilder(context, doc, snapshot.docs, index);
+                return Column(
+                  children: [
+                    if (reverse) ...[
+                      separatorBuilder(context, doc, snapshot.docs, index),
+                      additionalItemsBuilder?.call(context, doc, snapshot.docs, index) ?? const SizedBox.shrink(),
+                    ] else ...[
+                      additionalItemsBuilder?.call(context, doc, snapshot.docs, index) ?? const SizedBox.shrink(),
+                      separatorBuilder(context, doc, snapshot.docs, index),
+                    ]
+                  ],
+                );
               },
               scrollDirection: scrollDirection,
               reverse: reverse,
