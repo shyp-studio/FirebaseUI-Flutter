@@ -364,7 +364,7 @@ typedef FirestoreSeparatorBuilder<Document> = Widget Function(
   int index,
 );
 
-typedef FirestoreAdditionalItemsBuilder<Document> = Widget Function(
+typedef FirestoreAdditionalItemsBuilder<Document> = List<Widget> Function(
   BuildContext context,
   QueryDocumentSnapshot<Document> doc,
   List<QueryDocumentSnapshot<Document>> docs,
@@ -639,7 +639,7 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
                           children: [
                             if (!reverse)
                               if (index == 0 && additionalItemsBeginningBuilder != null)
-                                additionalItemsBeginningBuilder.call(context, doc, snapshot.docs, index),
+                                ...additionalItemsBeginningBuilder.call(context, doc, snapshot.docs, index),
                             if (reverse)
                               if (isLastItem && !snapshot.hasMore && separatorBeginningBuilder != null)
                                 separatorBeginningBuilder(context, doc, snapshot.docs, index),
@@ -677,7 +677,7 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
                                 separatorBeginningBuilder(context, doc, snapshot.docs, index),
                             if (reverse)
                               if (index == 0 && additionalItemsBeginningBuilder != null)
-                                additionalItemsBeginningBuilder.call(context, doc, snapshot.docs, index)
+                                ...additionalItemsBeginningBuilder.call(context, doc, snapshot.docs, index)
                           ],
                         ),
                       )
@@ -689,9 +689,9 @@ class FirestoreListView<Document> extends FirestoreQueryBuilder<Document> {
                   children: [
                     if (reverse) ...[
                       separatorBuilder(context, doc, snapshot.docs, index),
-                      additionalItemsBuilder?.call(context, doc, snapshot.docs, index) ?? const SizedBox.shrink(),
+                      ...additionalItemsBuilder?.call(context, doc, snapshot.docs, index) ?? [const SizedBox.shrink()],
                     ] else ...[
-                      additionalItemsBuilder?.call(context, doc, snapshot.docs, index) ?? const SizedBox.shrink(),
+                      ...additionalItemsBuilder?.call(context, doc, snapshot.docs, index) ?? [const SizedBox.shrink()],
                       separatorBuilder(context, doc, snapshot.docs, index),
                     ]
                   ],
